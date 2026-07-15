@@ -1,7 +1,8 @@
 import { useState, useEffect, useContext } from 'react';
 import { NavLink } from 'react-router-dom';
-import { AppCtx, ROLE_ACCESS, ROLE_LABELS } from '../App';
-import { getAllSubmissions } from '../apis/adminApi';
+import { AppCtx } from '../App';
+import { ROLE_ACCESS, ROLE_LABELS } from '../config/roles';
+import { getAllSubmissions } from '../api/kyc.api';
 
 function normalizeStatus(s) {
   if (!s) return 'Pending';
@@ -37,30 +38,42 @@ const NavGroup = ({ items }) =>
   ));
 
 export default function Sidebar({ onLogout }) {
-  const { adminRole } = useContext(AppCtx);
-  const [pendingKycCount,  setPendingKycCount]  = useState(0);
+  // Fallback for missing context – ensures sidebar always renders
+  const context = useContext(AppCtx);
+  const adminRole = context?.adminRole || 'super_admin'; // default to super_admin if missing
+
+  const [pendingKycCount, setPendingKycCount] = useState(0);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   useEffect(() => {
-    const canSeeKyc   = ROLE_ACCESS['/kyc']?.includes(adminRole);
-    const canSeeNotif = ROLE_ACCESS['/notifications']?.includes(adminRole);
-    if (!canSeeKyc && !canSeeNotif) return;
+    // If API fails, counts stay 0 – sidebar remains static
+    try {
+      const canSeeKyc = ROLE_ACCESS['/kyc']?.includes(adminRole);
+      const canSeeNotif = ROLE_ACCESS['/notifications']?.includes(adminRole);
+      if (!canSeeKyc && !canSeeNotif) return;
 
-    getAllSubmissions()
-      .then(res => {
-        const arr = res.data?.kycs || [];
-        if (canSeeKyc) {
-          setPendingKycCount(
-            arr.filter(r => r.status === 'under_review' || r.status === 'documents_uploaded').length
-          );
-        }
-        if (canSeeNotif) {
-          setUnreadNotifCount(
-            arr.filter(r => normalizeStatus(r.status) === 'Pending').length
-          );
-        }
-      })
-      .catch(err => console.error('Failed to load badge counts', err));
+      getAllSubmissions()
+        .then(res => {
+          const arr = res.data?.kycs || [];
+          if (canSeeKyc) {
+            setPendingKycCount(
+              arr.filter(r => r.status === 'under_review' || r.status === 'documents_uploaded').length
+            );
+          }
+          if (canSeeNotif) {
+            setUnreadNotifCount(
+              arr.filter(r => normalizeStatus(r.status) === 'Pending').length
+            );
+          }
+        })
+        .catch(err => {
+          // Silently fail – counts remain 0
+          console.warn('Failed to load badge counts, using defaults', err);
+        });
+    } catch (e) {
+      // Catch any unexpected errors to prevent breaking the sidebar
+      console.warn('Sidebar badge loading error', e);
+    }
   }, [adminRole]);
 
   // All possible nav items

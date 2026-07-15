@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext } from 'react';
-import { changePassword, getAllAdmins, createSubAdmin, revokeAdminAccess, updateAdminRole } from '../apis/adminApi';
-import { AppCtx, ROLE_LABELS } from '../App';
-
+import { AppCtx } from '../App';                     // <-- ADD THIS
+import { changePassword, getAllAdmins, createSubAdmin, revokeAdminAccess, updateAdminRole } from '../api/adminApi';
+import { ROLE_LABELS } from '../config/roles';
 const SUB_ADMIN_ROLES = [
   { value: 'kyc_admin',        label: 'KYC Admin',        desc: 'Manage KYC approvals' },
   { value: 'operations_admin', label: 'Operations Admin',  desc: 'Monitor transactions' },

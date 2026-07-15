@@ -592,3 +592,7 @@ body.dark {
   --toggle-off:            #374151;
 }
 body.dark .admin-chip { background: var(--gray-100); border-color: var(--gray-200); }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
