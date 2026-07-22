@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getAllUsers, getDashboardWidgetStats } from '../../../api/adminApi';
-import { getAllSubmissions, getDashboardStats } from '../../../api/kyc.api';
-
+import { getDashboardWidgetStats } from '../../../api/adminApi';
+import { getAllSubmissions } from '../../../api/kyc.api';
 
 export function useDashboard() {
   const [dateFilter, setDateFilter] = useState('all');
@@ -11,7 +10,6 @@ export function useDashboard() {
   const [loadingKyc, setLoadingKyc] = useState(true);
   const [error, setError] = useState('');
 
-  // Widget stats
   const [totalUsers, setTotalUsers] = useState(0);
   const [activeWallets, setActiveWallets] = useState(0);
   const [totalTxns, setTotalTxns] = useState(0);
@@ -20,23 +18,36 @@ export function useDashboard() {
   const [loadingWidgets, setLoadingWidgets] = useState(true);
 
   useEffect(() => {
-    // KYC submissions (table)
+    // ── Fetch KYC submissions ──
     getAllSubmissions()
       .then(res => {
         const arr = res.data?.kycs || [];
-        setKycs(Array.isArray(arr) ? arr : []);
+        setKycs(arr);
+        
+        // Compute stats from KYC data
+        const total = arr.length;
+        const approved = arr.filter(r => r.status === 'approved' || r._normalStatus === 'Approved').length;
+        const rejected = arr.filter(r => r.status === 'rejected' || r._normalStatus === 'Failed').length;
+        const pending = arr.filter(r => r.status === 'under_review' || r.status === 'not_started' || r.status === 'documents_uploaded' || r._normalStatus === 'Pending' || r._normalStatus === 'In Review').length;
+        
+        setStats({ totalSubmissions: total, approved, rejected, pending });
+        setActiveWallets(approved);
+        
+        // Compute totalUsers from unique userIds in KYC records
+        const userIds = new Set();
+        arr.forEach(r => {
+          const uid = r.userId?._id || r.userId;
+          if (uid) userIds.add(String(uid));
+        });
+        setTotalUsers(userIds.size);
       })
-      .catch(() => {})
-      .finally(() => setLoadingKyc(false));
+      .catch(() => setError('Failed to load dashboard stats'))
+      .finally(() => {
+        setLoadingStats(false);
+        setLoadingKyc(false);
+      });
 
-    // Users total
-    getAllUsers()
-      .then(res => {
-        setTotalUsers(res.data?.total ?? (res.data?.users?.length ?? 0));
-      })
-      .catch(() => {});
-
-    // Widget stats (transactions, PAYO, referrals)
+    // ── Widget stats ──
     getDashboardWidgetStats()
       .then(res => {
         const d = res.data || {};
@@ -46,24 +57,9 @@ export function useDashboard() {
       })
       .catch(() => {})
       .finally(() => setLoadingWidgets(false));
-
-    // KYC dashboard stats (donut + active wallets)
-    getDashboardStats()
-      .then(res => {
-        const s = res.data?.stats || {};
-        setStats(s);
-        setActiveWallets(s.approved || 0);
-      })
-      .catch(() => setError('Failed to load dashboard stats'))
-      .finally(() => setLoadingStats(false));
   }, []);
 
-  const totalSubmissions = stats?.totalSubmissions || 0;
-  const pendingKYC = (stats?.underReview || 0) + (stats?.docsUploaded || 0);
-  const approvedKYC = stats?.approved || 0;
-  const rejectedKYC = stats?.rejected || 0;
-
-  // Filter KYC list by date
+  // Filter KYC list by date (unchanged)
   const filteredKyc = (kycs || []).filter(r => {
     if (dateFilter === 'all') return true;
     const d = new Date(r.createdAt);
@@ -77,10 +73,13 @@ export function useDashboard() {
     return true;
   });
 
+  const totalSubmissions = stats?.totalSubmissions || 0;
+  const pendingKYC = (stats?.pending) || 0;
+  const approvedKYC = stats?.approved || 0;
+  const rejectedKYC = stats?.rejected || 0;
   const widgetLoading = loadingWidgets || loadingStats;
 
   return {
-    // state
     dateFilter,
     stats,
     kycs,
@@ -94,13 +93,11 @@ export function useDashboard() {
     referralRewards,
     loadingWidgets,
     widgetLoading,
-    // derived
     totalSubmissions,
     pendingKYC,
     approvedKYC,
     rejectedKYC,
     filteredKyc,
-    // actions
     setDateFilter,
   };
 }

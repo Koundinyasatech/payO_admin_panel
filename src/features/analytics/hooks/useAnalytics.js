@@ -1,29 +1,29 @@
 import { useState, useEffect } from 'react';
-import { getDashboardStats, getAllSubmissions } from '../../../api/kyc.api';
+import { getAllSubmissions } from '../../../api/kyc.api';
 import { normalizeStatus, MONTH_ORDER } from '../utils/helpers';
 
 export function useAnalytics() {
-  const [stats, setStats] = useState(null);
   const [allKyc, setAllKyc] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getDashboardStats(), getAllSubmissions()])
-      .then(([sRes, kRes]) => {
-        const s = sRes.data?.stats || {};
-        setStats(s);
-        const arr = kRes.data?.kycs || [];
+    getAllSubmissions()
+      .then(res => {
+        const arr = res.data?.kycs || [];
         setAllKyc(Array.isArray(arr) ? arr : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  // Compute derived stats
-  const approved = stats?.approved || 0;
-  const pending = (stats?.underReview || 0) + (stats?.docsUploaded || 0) + (stats?.notStarted || 0);
-  const rejected = stats?.rejected || 0;
-  const total = stats?.totalSubmissions || (approved + pending + rejected) || 1;
+  // Compute derived stats from the list
+  const total = allKyc.length || 1;
+  const approved = allKyc.filter(r => r.status === 'approved').length;
+  const rejected = allKyc.filter(r => r.status === 'rejected').length;
+  const underReview = allKyc.filter(r => r.status === 'under_review').length;
+  const docsUploaded = allKyc.filter(r => r.status === 'documents_uploaded').length;
+  const notStarted = allKyc.filter(r => r.status === 'not_started').length;
+  const pending = underReview + docsUploaded + notStarted;
   const successRate = ((approved / total) * 100).toFixed(1);
   const rejectionRate = ((rejected / total) * 100).toFixed(1);
 

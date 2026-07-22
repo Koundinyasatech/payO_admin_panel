@@ -1,4 +1,4 @@
-// src/features/kyc/components/DocumentCard.jsx
+
 import { useState, useEffect } from 'react';
 import { normalizeDocUrl } from '../utils/normalizeDocUrl';
 export function DocumentCard({ title, emoji, url, accentColor, accentBg, flagged }) {
@@ -129,3 +129,4 @@ export function DocumentCard({ title, emoji, url, accentColor, accentBg, flagged
     </div>
   );
 }
+

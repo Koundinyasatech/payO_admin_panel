@@ -1,11 +1,12 @@
 import api from "./Axios";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
-export const loginAdmin = (email, password) =>
-  api.post("/api/admin/auth/login", { email, password });
 
-export const changePassword = (currentPassword, newPassword) =>
-  api.patch("/api/admin/auth/change-password", { currentPassword, newPassword });
+
+
+
+// Add this
+
 
 export const getAllAdmins = () =>
   api.get("/api/admin/auth/all-admins");
@@ -20,8 +21,6 @@ export const updateAdminRole = (adminId, adminRole) =>
   api.patch(`/api/admin/auth/update-admin-role/${adminId}`, { adminRole });
 
 // ─── Users ───────────────────────────────────────────────────────────────────
-export const getAllUsers = () =>
-  api.get("/api/admin/auth/users");
 
 export const exportUsers = (type) =>
   api.get("/api/admin/auth/export-users", {

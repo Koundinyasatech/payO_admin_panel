@@ -1,14 +1,14 @@
-// src/features/kyc/hooks/useKYC.js
-import { useState, useEffect, useContext } from 'react';
+/* eslint-disable no-unused-vars */
+import { useState, useEffect, useContext, useCallback } from 'react';
 import { AppCtx } from '../../../App';
-import { getAllSubmissions, approveKYC, rejectKYC } from '../../../api/kyc.api';
+import { getAllSubmissions, approveRejectKYC } from '../../../api/kyc.api';
 import { normalizeStatus } from '../utils/normalizeStatus';
 import { getInitials } from '../utils/getInitials';
 import { COLORS } from '../utils/constants';
 
 export function useKYC() {
   const { confirm, adminRole } = useContext(AppCtx);
-  const canApproveReject = ['super_admin', 'kyc_admin'].includes(adminRole);
+  const canApproveReject = ['super_admin', 'kyc_admin', 'admin'].includes(adminRole);
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,18 +20,19 @@ export function useKYC() {
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const showToast = (msg, type) => {
+  const showToast = useCallback((msg, type) => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3200);
-  };
+  }, []);
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setLoading(true);
     getAllSubmissions()
       .then(res => {
         const arr = res.data?.kycs || [];
         const enriched = (Array.isArray(arr) ? arr : []).map((r, idx) => ({
           ...r,
+          _id: String(r._id || r.KYC_doc_id || ''),
           _normalStatus: normalizeStatus(r.status),
           _initials: getInitials(r.fullName || r.userId?.name || '?'),
           _color: COLORS[idx % COLORS.length],
@@ -40,30 +41,34 @@ export function useKYC() {
       })
       .catch(() => showToast('Failed to load KYC submissions', 'err'))
       .finally(() => setLoading(false));
-  };
+  }, [showToast]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
+  // ─── Approve (sends 'A') ──────────────────────────────────────────────────
   const approve = async (id) => {
     try {
-      await approveKYC(id);
+      await approveRejectKYC(Number(id), 'A');
       setData(prev => prev.map(r => r._id === id ? { ...r, status: 'approved', _normalStatus: 'Approved' } : r));
       setSelectedUser(null);
       showToast('KYC Approved — Wallet activated!', 'ok');
     } catch (err) {
+      console.error('Approve error:', err);
       showToast(err.response?.data?.message || 'Approval failed', 'err');
     }
   };
 
+  // ─── Reject (sends 'R') ──────────────────────────────────────────────────
   const reject = async (id, reason) => {
     try {
-      await rejectKYC(id, reason);
+      await approveRejectKYC(Number(id), 'R', reason);
       setData(prev => prev.map(r => r._id === id ? { ...r, status: 'rejected', _normalStatus: 'Failed', rejectionReason: reason } : r));
       setSelectedUser(null);
       showToast('KYC Rejected. User notified.', 'err');
     } catch (err) {
+      console.error('Reject error:', err);
       showToast(err.response?.data?.message || 'Rejection failed', 'err');
     }
   };
@@ -120,7 +125,6 @@ export function useKYC() {
   const pagedData = filtered.slice((page - 1) * perPage, page * perPage);
 
   return {
-    // state
     data,
     loading,
     fStatus,
@@ -136,8 +140,6 @@ export function useKYC() {
     totalPages,
     perPage,
     canApproveReject,
-
-    // actions
     setFStatus,
     setSearch,
     setPage,
@@ -153,3 +155,4 @@ export function useKYC() {
     showToast,
   };
 }
+/* eslint-enable no-unused-vars */

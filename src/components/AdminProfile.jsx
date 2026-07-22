@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext } from 'react';
 import { AppCtx } from '../App';                     // <-- ADD THIS
-import { changePassword, getAllAdmins, createSubAdmin, revokeAdminAccess, updateAdminRole } from '../api/adminApi';
+import { changePassword, getAllAdmins, createSubAdmin, revokeAdminAccess, updateAdminRole } from '../features/auth/api/authApi';
 import { ROLE_LABELS } from '../config/roles';
 const SUB_ADMIN_ROLES = [
   { value: 'kyc_admin',        label: 'KYC Admin',        desc: 'Manage KYC approvals' },

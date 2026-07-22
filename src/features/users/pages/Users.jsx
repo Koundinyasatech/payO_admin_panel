@@ -6,6 +6,7 @@ import { UserTableRow } from '../components/UserTableRow';
 import { UserModal } from '../components/UserModal';
 import { KycQuickModal } from '../components/KycQuickModal';
 
+
 export default function Users() {
   const {
     loading, error, totals,
