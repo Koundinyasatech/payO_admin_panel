@@ -9,7 +9,7 @@ const transformKYC = (record) => {
   let passportUrl = null;
   let selfieUrl = null;
   let cancelChequeUrl = null;
-  let bankStatementUrl = null;
+  let bankStatementUrl = null
   let passbookUrl = null;
 
   // ── Handle nested documents array ──

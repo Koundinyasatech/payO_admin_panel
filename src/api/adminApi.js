@@ -1,13 +1,7 @@
+// src/api/adminApi.js
 import api from "./Axios";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
-
-
-
-
-// Add this
-
-
 export const getAllAdmins = () =>
   api.get("/api/admin/auth/all-admins");
 
@@ -21,7 +15,6 @@ export const updateAdminRole = (adminId, adminRole) =>
   api.patch(`/api/admin/auth/update-admin-role/${adminId}`, { adminRole });
 
 // ─── Users ───────────────────────────────────────────────────────────────────
-
 export const exportUsers = (type) =>
   api.get("/api/admin/auth/export-users", {
     params: { type },
@@ -50,7 +43,7 @@ export const exportTransactions = async (params) => {
 export const getReferrals = (params = {}) =>
   api.get("/api/admin/stats/referrals", { params });
 
-// ─── User Detail Tabs (used inside Users page modal) ────────────────────────
+// ─── User Detail Tabs ────────────────────────────────────────────────────────
 export const getUserKycDocs = (userId) =>
   api.get(`/api/admin/user-details/${userId}/kyc`);
 
@@ -59,3 +52,19 @@ export const getUserTransactions = (userId, params = {}) =>
 
 export const getUserReferralDetails = (userId) =>
   api.get(`/api/admin/user-details/${userId}/referral`);
+
+// ─── Payo Deposits (Wallet) ──────────────────────────────────────────────────
+// src/api/adminApi.js – add this at the bottom, inside the "Payo Deposits" section
+
+// ─── Payo Deposits (Wallet) ──────────────────────────────────────────────────
+export const getPendingPayoDeposits = async (userId = null) => {
+  const url = userId 
+    ? `/api/admin/pending-payo-deposits/${userId}` 
+    : `/api/admin/pending-payo-deposits`;
+  return await api.get(url);
+};
+
+// NEW: Approve or Reject a deposit
+export const approveRejectDeposit = (payload) => {
+  return api.post("api/admin/deposit-approval-reject", payload);
+};

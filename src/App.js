@@ -1,5 +1,6 @@
 // src/App.js
 import { BrowserRouter, useNavigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast'; // ✅ import Toaster
 import './App.css';
 import { useState, useEffect, createContext } from 'react';
 import ConfirmDialog from './components/ConfirmDialog';
@@ -68,6 +69,18 @@ function AppInner() {
 
   return (
     <AppCtx.Provider value={{ confirm, dark, adminRole }}>
+      {/* ✅ Toaster – appears on every page */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: dark ? '#1f2937' : '#363636',
+            color: '#fff',
+            borderRadius: '8px',
+          },
+        }}
+      />
       {!admin
         ? <Login onLogin={handleLogin} />
         : <AppRoutes
