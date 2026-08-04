@@ -2,7 +2,7 @@
 import { Badge } from './Badge';
 import { SkeletonRow } from './SkeletonRow';
 
-export function KYCTable({ data, loading, onReview, onApprove, onReject, canApproveReject }) {
+export function KYCTable({ data, loading, onReview }) {
   if (loading) {
     return (
       <tbody>
@@ -22,28 +22,40 @@ export function KYCTable({ data, loading, onReview, onApprove, onReject, canAppr
   return (
     <tbody>
       {data.map(r => {
-        const name      = r.fullName || r.userId?.name || 'Unknown';
-        const userIdStr = r._id || '';
-        const mobile    = r.userId?.mobile || '';
-        const status    = r._normalStatus;
-        const initials  = r._initials;
-        const color     = r._color;
-        const dateStr   = r.createdAt || '';
+        const name = r.fullName || r.name || r.userId?.name || 'Unknown';
+        const userIdStr = r.userId?._id || r.userid || '';
+        const mobile = r.userId?.mobile || r.mobile || '';
+        const status = r._normalStatus;
+        const initials = r._initials;
+        const color = r._color;
+        const dateStr = r.submitted_on || r.createdAt || '';
         const formatted = dateStr ? new Date(dateStr).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
-        const docs = [];
-        if (r.aadharFrontUrl)    docs.push('🪪 Aadhaar');
-        if (r.panCardUrl)        docs.push('💳 PAN');
-        if (r.passportUrl)       docs.push('📔 Passport');
-        if (r.selfieUrl)         docs.push('🤳 Selfie');
-        if (r.cancelChequeUrl || r.cancelledChequeUrl)  docs.push('🏦 Cheque');
-        if (r.bankStatementUrl || r.statementUrl)        docs.push('📄 Statement');
-        if (r.passbookUrl)       docs.push('📒 Passbook');
+
+        // ─── Build document badges from the documents array ──────────
+        const docs = (r.documents || []).map(d => {
+          const emojiMap = {
+            'AADHAAR': '🪪',
+            'PAN': '💳',
+            'PASSPORT': '📔',
+            'SELFIE': '🤳',
+            'BANK': '🏦',
+            'CANCEL_CHEQUE': '🏦',
+            'BANK_STATEMENT': '📄',
+            'PASSBOOK': '📒',
+          };
+          const emoji = emojiMap[d.document_type] || '📄';
+          return `${emoji} ${d.document_type}`;
+        });
+
+        // ─── Preview – first document URL ───────────────────────────
+        const firstDoc = (r.documents || [])[0];
+        const firstDocUrl = firstDoc?.front_image_url || null;
 
         return (
-          <tr key={r._id}>
+          <tr key={r._id || r.userid}>
             <td>
               <div className="user-cell">
-                <div className="avatar" style={{ background:color }}>{initials}</div>
+                <div className="avatar" style={{ background: color }}>{initials}</div>
                 <div>
                   <div className="uname">{name}</div>
                   <div className="uid">{mobile || String(userIdStr).slice(-10)}</div>
@@ -60,16 +72,24 @@ export function KYCTable({ data, loading, onReview, onApprove, onReject, canAppr
             <td style={{ color:'var(--gray-400)', fontSize:13 }}>{formatted}</td>
             <td><Badge status={status}/></td>
             <td>
-              <div className="act-group">
-                <button className="btn btn-outline" style={{ fontSize:12, padding:'5px 11px' }} onClick={()=>onReview(r)}>👁 Review</button>
-                {canApproveReject && status === 'In Review' && <>
-                  <button className="btn btn-ghost icon-btn" title="Approve" onClick={()=>onApprove(r._id)} style={{ color:'var(--green)' }}>
-                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+              <div className="act-group" style={{ display: 'flex', gap: 6 }}>
+                {firstDocUrl && (
+                  <button
+                    className="btn btn-ghost icon-btn"
+                    title="Preview document"
+                    onClick={() => window.open(firstDocUrl, '_blank')}
+                    style={{ fontSize: 14 }}
+                  >
+                    👁
                   </button>
-                  <button className="btn btn-ghost icon-btn" title="Reject" onClick={()=>onReject(r._id)} style={{ color:'var(--red)' }}>
-                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </>}
+                )}
+                <button
+                  className="btn btn-outline"
+                  style={{ fontSize:12, padding:'5px 11px' }}
+                  onClick={() => onReview(r)}
+                >
+                  📋 Review
+                </button>
               </div>
             </td>
           </tr>

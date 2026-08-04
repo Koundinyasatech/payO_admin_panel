@@ -68,3 +68,21 @@ export const getPendingPayoDeposits = async (userId = null) => {
 export const approveRejectDeposit = (payload) => {
   return api.post("api/admin/deposit-approval-reject", payload);
 };
+
+
+// ─── Bonus Schemes ──────────────────────────────────────────────────────────
+export const addBonusScheme = (data) =>
+  api.post("/api/admin/bonus-scheme/add", data);
+
+export const updateBonusScheme = (data) =>
+  api.put("/api/admin/bonus-scheme/update", data);
+
+export const deactivateBonusScheme = (schemeCode) =>
+  api.patch("/api/admin/bonus-scheme/delete", { scheme_code: schemeCode });
+
+export const activateBonusScheme = (schemeCode) =>
+  api.patch("/api/admin/bonus-scheme/activate", { scheme_code: schemeCode });
+
+// ✅ GET endpoint (plural) – matches your backend route: /bonus-schemes
+export const getBonusSchemes = (params = {}) =>
+  api.get("/api/admin/bonus-schemes", { params });

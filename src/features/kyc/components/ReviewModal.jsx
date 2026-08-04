@@ -1,9 +1,11 @@
+// src/features/kyc/components/ReviewModal.jsx
 import { useState } from 'react';
 import { Badge } from './Badge';
 import { DocumentCard } from './DocumentCard';
 import { normalizeStatus } from '../utils/normalizeStatus';
 import { getInitials } from '../utils/getInitials';
 import { COLORS } from '../utils/constants';
+import toast from 'react-hot-toast';
 
 function SectionDivider({ icon, label, bg }) {
   return (
@@ -15,36 +17,132 @@ function SectionDivider({ icon, label, bg }) {
   );
 }
 
+// ✅ Named export – exactly as imported in KYCReview
 export function ReviewModal({ user, onClose, onApprove, onReject, canApproveReject }) {
   const [tab, setTab] = useState('details');
-  const [reason, setReason] = useState('');
+  const [rejectReasons, setRejectReasons] = useState({});
+  const [processing, setProcessing] = useState({});
 
   if (!user) return null;
 
-  // All data is already in `user` – no fetch needed
-  const src = user;
-  const name = src.fullName || src.userId?.name || 'Unknown';
-  const userIdStr = src.userId?._id || src.userId || '';
-  const email = src.userId?.email || '—';
-  const mobile = src.userId?.mobile || '—';
-  const status = normalizeStatus(src.status);
+  // ─── User details ──────────────────────────────────────────────────────
+  const name = user.fullName || user.name || user.userId?.name || 'Unknown';
+  const userIdStr = user.userId?._id || user.userid || user._id || '';
+  const email = user.userId?.email || user.email || '—';
+  const mobile = user.userId?.mobile || user.mobile || '—';
+  const status = normalizeStatus(user.status);
   const isFailed = status === 'Failed';
-  const initials = src._initials || getInitials(name);
-  const color = src._color || COLORS[0];
-  const rejectionReason = src.rejectionReason;
-  const reviewedAt = src.reviewedAt;
-  const reviewedBy = src.reviewedBy?.name || src.reviewedBy?.email;
+  const initials = user._initials || getInitials(name);
+  const color = user._color || COLORS[0];
+  const rejectionReason = user.rejectionReason;
+  const reviewedAt = user.reviewedAt;
+  const reviewedBy = user.reviewedBy?.name || user.reviewedBy?.email;
 
-  // Document URLs – already mapped in the transformer
-  const aadhar = src.aadharFrontUrl;
-  const pan = src.panCardUrl;
-  const passport = src.passportUrl;
-  const selfie = src.selfieUrl;
-  const cancelCheque = src.cancelChequeUrl || src.cancelledChequeUrl;
-  const bankStatement = src.bankStatementUrl || src.statementUrl;
-  const passbook = src.passbookUrl;
+  // ─── Documents array ──────────────────────────────────────────────────
+  let documents = user.documents || [];
+  if (documents.length === 0) {
+    const map = [
+      { key: 'aadharFrontUrl', type: 'AADHAAR', label: 'Aadhaar (Front)' },
+      { key: 'panCardUrl', type: 'PAN', label: 'PAN Card' },
+      { key: 'passportUrl', type: 'PASSPORT', label: 'Passport' },
+      { key: 'selfieUrl', type: 'SELFIE', label: 'Selfie' },
+      { key: 'cancelChequeUrl', type: 'CANCEL_CHEQUE', label: 'Cancel Cheque' },
+      { key: 'bankStatementUrl', type: 'BANK_STATEMENT', label: 'Bank Statement' },
+      { key: 'passbookUrl', type: 'PASSBOOK', label: 'Passbook' },
+    ];
+    map.forEach(item => {
+      const url = user[item.key] || user[item.key.replace('Url', '')];
+      if (url) {
+        documents.push({
+          KYC_doc_id: `fallback_${item.key}`,
+          document_type: item.type,
+          front_image_url: url,
+          status: user.status || 'Pending',
+          Rejection_Reason: user.rejectionReason || 'Not Rejected',
+        });
+      }
+    });
+  }
 
-  const hasAnyDoc = !!(aadhar || pan || passport || selfie || cancelCheque || bankStatement || passbook);
+  // ─── Handlers ────────────────────────────────────────────────────────────
+  const handleApprove = async (KYC_doc_id) => {
+    if (!canApproveReject) return;
+    setProcessing(prev => ({ ...prev, [KYC_doc_id]: true }));
+    try {
+      await onApprove(KYC_doc_id);
+    } catch (err) {
+      // Error handled in hook
+    } finally {
+      setProcessing(prev => ({ ...prev, [KYC_doc_id]: false }));
+    }
+  };
+
+  const handleReject = async (KYC_doc_id) => {
+    if (!canApproveReject) return;
+    const reason = rejectReasons[KYC_doc_id] || '';
+    if (!reason.trim()) {
+      toast.error('Please enter a rejection reason.');
+      return;
+    }
+    setProcessing(prev => ({ ...prev, [KYC_doc_id]: true }));
+    try {
+      await onReject(KYC_doc_id, reason);
+    } catch (err) {
+      // Error handled in hook
+    } finally {
+      setProcessing(prev => ({ ...prev, [KYC_doc_id]: false }));
+    }
+  };
+
+  const handleReasonChange = (KYC_doc_id, value) => {
+    setRejectReasons(prev => ({ ...prev, [KYC_doc_id]: value }));
+  };
+
+  // ─── Status helpers ──────────────────────────────────────────────────────
+  const getDocStatus = (doc) => {
+    const s = doc.status || 'Pending';
+    if (s === 'Approved') return 'Approved';
+    if (s === 'Rejected') return 'Failed';
+    if (s === 'under_review' || s === 'Under Review') return 'In Review';
+    return s || 'Pending';
+  };
+
+  const isDocPending = (doc) => {
+    const s = (doc.status || 'Pending').toLowerCase();
+    return s !== 'approved' && s !== 'rejected' && s !== 'failed';
+  };
+
+  // ─── Group documents ──────────────────────────────────────────────────
+  const grouped = {};
+  documents.forEach(doc => {
+    const type = doc.document_type || 'OTHER';
+    if (!grouped[type]) grouped[type] = [];
+    grouped[type].push(doc);
+  });
+
+  const docTypeIcons = {
+    'AADHAAR': '🪪',
+    'PAN': '💳',
+    'PASSPORT': '📔',
+    'SELFIE': '🤳',
+    'BANK': '🏦',
+    'BANK_STATEMENT': '📄',
+    'CANCEL_CHEQUE': '🏦',
+    'PASSBOOK': '📒',
+  };
+
+  const docTypeBg = {
+    'AADHAAR': '#EFF6FF',
+    'PAN': '#F5F3FF',
+    'PASSPORT': '#FFF7ED',
+    'SELFIE': '#F0FDF4',
+    'BANK': '#FFFBEB',
+    'BANK_STATEMENT': '#FFFBEB',
+    'CANCEL_CHEQUE': '#FFFBEB',
+    'PASSBOOK': '#FFFBEB',
+  };
+
+  const hasAnyDoc = documents.length > 0;
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -66,17 +164,12 @@ export function ReviewModal({ user, onClose, onApprove, onReject, canApproveReje
         </div>
 
         <div className="modal-tabs">
-          {[
-            ['details', 'Details'],
-            ['documents', 'Documents'],
-            canApproveReject && ['action', 'Take Action']
-          ].filter(Boolean).map(([key, label]) => (
-            <button key={key} className={`mtab${tab === key ? ' act' : ''}`} onClick={() => setTab(key)}>{label}</button>
-          ))}
+          <button className={`mtab${tab === 'details' ? ' act' : ''}`} onClick={() => setTab('details')}>Details</button>
+          <button className={`mtab${tab === 'documents' ? ' act' : ''}`} onClick={() => setTab('documents')}>Documents</button>
         </div>
 
         <div className="modal-body">
-          {/* Details Tab */}
+          {/* Details tab */}
           {tab === 'details' && (
             <>
               <div style={{ marginBottom: 20 }}>
@@ -87,8 +180,8 @@ export function ReviewModal({ user, onClose, onApprove, onReject, canApproveReje
                     ['User ID', String(userIdStr).slice(-12)],
                     ['Email', email],
                     ['Mobile', mobile],
-                    ['Submitted On', src.createdAt ? new Date(src.createdAt).toLocaleString('en-IN') : '—'],
-                    ['Submission Count', src.submissionCount || 1],
+                    ['Submitted On', user.submitted_on || user.createdAt ? new Date(user.submitted_on || user.createdAt).toLocaleString('en-IN') : '—'],
+                    ['Submission Count', user.submissionCount || 1],
                   ].map(([l, v]) => (
                     <div className="detail-item" key={l}><label>{l}</label><span>{v}</span></div>
                   ))}
@@ -118,7 +211,7 @@ export function ReviewModal({ user, onClose, onApprove, onReject, canApproveReje
             </>
           )}
 
-          {/* Documents Tab */}
+          {/* Documents tab */}
           {tab === 'documents' && (
             <>
               {isFailed && (
@@ -130,142 +223,141 @@ export function ReviewModal({ user, onClose, onApprove, onReject, canApproveReje
                 <span>⚠️</span><span>Verify all documents are clear, legible, and belong to the same person. Click any document to open the full-size image.</span>
               </div>
 
-              {hasAnyDoc ? (
-                <>
-                  <div style={{ marginBottom: 20 }}>
-                    <SectionDivider icon="🪪" label="Identity Documents" bg="#EFF6FF" />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                      <DocumentCard
-                        title="Aadhaar Card (Front)"
-                        emoji="🪪"
-                        url={aadhar}
-                        accentColor="#3B82F6"
-                        accentBg="linear-gradient(135deg,#EFF6FF,#DBEAFE)"
-                        flagged={isFailed}
-                      />
-                      <DocumentCard
-                        title="PAN Card"
-                        emoji="💳"
-                        url={pan}
-                        accentColor="#8B5CF6"
-                        accentBg="linear-gradient(135deg,#F5F3FF,#EDE9FE)"
-                        flagged={isFailed}
-                      />
-                    </div>
-                  </div>
-
-                  {passport && (
-                    <div style={{ marginBottom: 20 }}>
-                      <SectionDivider icon="📔" label="Passport" bg="#FFF7ED" />
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                        <DocumentCard
-                          title="Passport"
-                          emoji="📔"
-                          url={passport}
-                          accentColor="#F97316"
-                          accentBg="linear-gradient(135deg,#FFF7ED,#FFEDD5)"
-                          flagged={isFailed}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{ marginBottom: 20 }}>
-                    <SectionDivider icon="🤳" label="Live Selfie" bg="#F0FDF4" />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                      <DocumentCard
-                        title="Live Selfie"
-                        emoji="🤳"
-                        url={selfie}
-                        accentColor="#10B981"
-                        accentBg="linear-gradient(135deg,#F0FDF4,#ECFDF5)"
-                        flagged={isFailed}
-                      />
-                    </div>
-                  </div>
-
-                  {(cancelCheque || bankStatement || passbook) && (
-                    <div style={{ marginBottom: 20 }}>
-                      <SectionDivider icon="🏦" label="Bank Documents" bg="#FFFBEB" />
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-                        <DocumentCard
-                          title="Cancel Cheque"
-                          emoji="🏦"
-                          url={cancelCheque}
-                          accentColor="#3B82F6"
-                          accentBg="linear-gradient(135deg,#EFF6FF,#DBEAFE)"
-                          flagged={isFailed}
-                        />
-                        <DocumentCard
-                          title="Bank Statement"
-                          emoji="📄"
-                          url={bankStatement}
-                          accentColor="#8B5CF6"
-                          accentBg="linear-gradient(135deg,#F5F3FF,#EDE9FE)"
-                          flagged={isFailed}
-                        />
-                        <DocumentCard
-                          title="Passbook"
-                          emoji="📒"
-                          url={passbook}
-                          accentColor="#F59E0B"
-                          accentBg="linear-gradient(135deg,#FFFBEB,#FEF3C7)"
-                          flagged={isFailed}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
+              {!hasAnyDoc ? (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--gray-400)' }}>
                   <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>No documents uploaded yet</div>
                   <div style={{ fontSize: 12, marginTop: 4 }}>This user has not submitted any KYC documents.</div>
                 </div>
+              ) : (
+                Object.entries(grouped).map(([docType, docs]) => {
+                  const icon = docTypeIcons[docType] || '📄';
+                  const bg = docTypeBg[docType] || '#f8fafc';
+                  const label = docType.charAt(0).toUpperCase() + docType.slice(1).toLowerCase();
+                  return (
+                    <div key={docType}>
+                      <SectionDivider icon={icon} label={`${label} Documents`} bg={bg} />
+                      {docs.map((doc) => {
+                        const KYC_doc_id = doc.KYC_doc_id || doc._id;
+                        if (!KYC_doc_id) return null;
+
+                        const docStatus = getDocStatus(doc);
+                        const isPending = isDocPending(doc);
+                        const isProcessing = processing[KYC_doc_id] || false;
+                        const reason = rejectReasons[KYC_doc_id] || '';
+                        const isRejected = docStatus === 'Failed';
+                        const isApproved = docStatus === 'Approved';
+
+                        return (
+                          <div
+                            key={KYC_doc_id}
+                            style={{
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 8,
+                              padding: 12,
+                              marginBottom: 16,
+                              background: '#fafafa',
+                            }}
+                          >
+                            <DocumentCard
+                              title={doc.document_type || docType}
+                              emoji={icon}
+                              url={doc.front_image_url}
+                              accentColor="#3B82F6"
+                              accentBg="#EFF6FF"
+                              flagged={isRejected}
+                            />
+
+                            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              <div>
+                                <span style={{ fontSize: 12, color: '#6b7280' }}>Status: </span>
+                                <Badge status={docStatus} />
+                                {doc.Rejection_Reason && doc.Rejection_Reason !== 'Not Rejected' && (
+                                  <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
+                                    Rejection reason: {doc.Rejection_Reason}
+                                  </div>
+                                )}
+                              </div>
+
+                              {canApproveReject && (
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="Rejection reason"
+                                    value={reason}
+                                    onChange={(e) => handleReasonChange(KYC_doc_id, e.target.value)}
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 4,
+                                      border: '1px solid #d1d5db',
+                                      fontSize: 12,
+                                      width: 160,
+                                    }}
+                                    disabled={!isPending || isProcessing}
+                                  />
+                                  <button
+                                    className="btn btn-success"
+                                    onClick={() => handleApprove(KYC_doc_id)}
+                                    disabled={!isPending || isProcessing}
+                                    style={{
+                                      padding: '5px 16px',
+                                      background: '#059669',
+                                      color: '#fff',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: (!isPending || isProcessing) ? 'not-allowed' : 'pointer',
+                                      opacity: (!isPending || isProcessing) ? 0.5 : 1,
+                                    }}
+                                  >
+                                    {isProcessing ? '...' : '✅ Approve'}
+                                  </button>
+                                  <button
+                                    className="btn btn-danger"
+                                    onClick={() => handleReject(KYC_doc_id)}
+                                    disabled={!isPending || isProcessing}
+                                    style={{
+                                      padding: '5px 16px',
+                                      background: '#dc2626',
+                                      color: '#fff',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: (!isPending || isProcessing) ? 'not-allowed' : 'pointer',
+                                      opacity: (!isPending || isProcessing) ? 0.5 : 1,
+                                    }}
+                                  >
+                                    {isProcessing ? '...' : '❌ Reject'}
+                                  </button>
+                                  {!isPending && (
+                                    <span style={{ fontSize: 11, color: '#6b7280' }}>
+                                      (Document already {docStatus})
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {!canApproveReject && (
+                                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                                  No action allowed – contact admin for permissions
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })
               )}
             </>
           )}
+        </div>
 
-          {/* Action Tab */}
-          {tab === 'action' && (
-            <>
-              <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '14px 16px', marginBottom: 20, border: '1px solid var(--gray-200)' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--navy)', marginBottom: 6 }}>Current Status</div>
-                <Badge status={status} />
-                {status !== 'In Review' && (
-                  <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 8 }}>
-                    ℹ️ Backend only allows approve/reject on records with status <code>under_review</code>.
-                  </div>
-                )}
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <div className="section-title">Approve KYC</div>
-                <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 12, lineHeight: 1.5 }}>Approving will activate the user's wallet and allow them to send/receive PYO tokens.</p>
-                <button
-                  className="btn btn-success"
-                  style={{ width: '100%', padding: '11px', fontSize: 13, opacity: status === 'In Review' ? 1 : 0.5 }}
-                  disabled={status !== 'In Review'}
-                  onClick={() => onApprove(user._id)}
-                >
-                  ✅ Approve KYC & Activate Wallet
-                </button>
-              </div>
-              <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, padding: '16px' }}>
-                <div className="section-title">Reject KYC</div>
-                <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 10 }}>Provide a clear reason so the user knows what to fix:</p>
-                <textarea rows={3} placeholder="e.g. Aadhaar & PAN name mismatch, selfie unclear..." value={reason} onChange={e => setReason(e.target.value)} />
-                <button
-                  className="btn btn-danger"
-                  style={{ width: '100%', padding: '11px', fontSize: 13, marginTop: 10, opacity: (reason.trim() && status === 'In Review') ? 1 : 0.5 }}
-                  disabled={status !== 'In Review'}
-                  onClick={() => { if (reason.trim()) onReject(user._id, reason); }}
-                >
-                  ❌ Reject KYC
-                </button>
-                {!reason.trim() && status === 'In Review' && <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 5, textAlign: 'center' }}>Enter a rejection reason first</div>}
-              </div>
-            </>
-          )}
+        <div className="modal-foot" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

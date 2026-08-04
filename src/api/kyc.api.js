@@ -154,10 +154,9 @@ export const getAllSubmissions = async () => {
 
 
 // ─── Approve & Reject (combined) ────────────────────────────────────────────
-export const approveRejectKYC = (docId, response, rejectReason = '') => {
-  // response must be 'A' for approve, 'R' for reject
-  return api.patch(`/api/admin/kyc/approve-reject/${docId}`, {
+export const approveRejectKYC = (KYC_doc_id, response, rejectReason = '') => {
+  return api.patch(`/api/admin/kyc/approve-reject/${KYC_doc_id}`, {
     response,
-    rejectReason,
+    rejectReason,   // exact field name expected by backend
   });
 };

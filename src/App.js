@@ -1,11 +1,12 @@
 // src/App.js
 import { BrowserRouter, useNavigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast'; // ✅ import Toaster
+import { Toaster } from 'react-hot-toast';
 import './App.css';
 import { useState, useEffect, createContext } from 'react';
 import ConfirmDialog from './components/ConfirmDialog';
 import Login from './features/auth/pages/Login';
 import { AppRoutes } from './router/AppRoutes';
+import api from './api/Axios'; // your configured axios instance
 
 export const AppCtx = createContext({});
 
@@ -18,21 +19,41 @@ function AppInner() {
   });
   const [dlg, setDlg] = useState(null);
 
-  // Restore session
+  // ─── Session verification on load ──────────────────────────────
   useEffect(() => {
-    try {
+    const verifySession = async () => {
       const token = localStorage.getItem('payo_token');
-      const saved = localStorage.getItem('payo_admin');
-      if (token && saved) {
-        setAdmin(JSON.parse(saved));
+      const savedAdmin = localStorage.getItem('payo_admin');
+
+      // No token → go to login
+      if (!token || !savedAdmin) {
+        setLoading(false);
+        return;
       }
-    } catch {
-      localStorage.removeItem('payo_token');
-      localStorage.removeItem('payo_admin');
-    }
-    setLoading(false);
+
+      try {
+        // ✅ Try to fetch a protected resource (e.g., user profile)
+        // Use any authenticated endpoint – we use the KYC endpoint as a "ping".
+        // Adjust the URL to your actual endpoint.
+        await api.get('/api/admin/kyc/all-submissions', { params: { _t: Date.now() } });
+        // If we get here, the token is valid.
+        const adminData = JSON.parse(savedAdmin);
+        setAdmin(adminData);
+      } catch (error) {
+        // Network error, 401, or any failure → clear session
+        console.warn('Session verification failed:', error.message);
+        localStorage.removeItem('payo_token');
+        localStorage.removeItem('payo_admin');
+        setAdmin(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    verifySession();
   }, []);
 
+  // ─── Dark mode ──────────────────────────────────────────────────
   useEffect(() => {
     document.body.classList.toggle('dark', dark);
     try { localStorage.setItem('payo-dark', dark); } catch {}
@@ -69,7 +90,6 @@ function AppInner() {
 
   return (
     <AppCtx.Provider value={{ confirm, dark, adminRole }}>
-      {/* ✅ Toaster – appears on every page */}
       <Toaster
         position="top-right"
         toastOptions={{
