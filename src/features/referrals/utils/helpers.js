@@ -7,13 +7,12 @@ export function formatDate(str) {
 }
 
 // Reward status config
-export const STATUS_CFG = {
-  paid: { cls: 'b-approved', label: 'Paid' },
-  pending: { cls: 'b-pending', label: 'Pending' },
-  failed: { cls: 'b-failed', label: 'Failed' },
-  held: { cls: 'b-review', label: 'Held' },
+export const statusBadge = (status) => {
+  const map = {
+    'ACTIVE': { label: 'Active', cls: 'badge-success' },
+    'INACTIVE': { label: 'Inactive', cls: 'badge-danger' },
+    'PENDING': { label: 'Pending', cls: 'badge-warning' },
+    // add any other statuses you expect
+  };
+  return map[status?.toUpperCase()] || { label: status || '—', cls: 'badge-secondary' };
 };
-export function statusBadge(s) {
-  return STATUS_CFG[String(s || '').toLowerCase()] ||
-    { cls: 'b-review', label: s || '—' };
-}

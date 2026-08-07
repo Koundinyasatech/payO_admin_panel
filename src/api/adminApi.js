@@ -40,8 +40,9 @@ export const exportTransactions = async (params) => {
 };
 
 // ─── Referrals ────────────────────────────────────────────────────────────────
+// ✅ UPDATED ENDPOINT – now uses /api/admin/referral-details
 export const getReferrals = (params = {}) =>
-  api.get("/api/admin/stats/referrals", { params });
+  api.get("/api/admin/referral-details", { params });
 
 // ─── User Detail Tabs ────────────────────────────────────────────────────────
 export const getUserKycDocs = (userId) =>
@@ -54,9 +55,6 @@ export const getUserReferralDetails = (userId) =>
   api.get(`/api/admin/user-details/${userId}/referral`);
 
 // ─── Payo Deposits (Wallet) ──────────────────────────────────────────────────
-// src/api/adminApi.js – add this at the bottom, inside the "Payo Deposits" section
-
-// ─── Payo Deposits (Wallet) ──────────────────────────────────────────────────
 export const getPendingPayoDeposits = async (userId = null) => {
   const url = userId 
     ? `/api/admin/pending-payo-deposits/${userId}` 
@@ -64,11 +62,9 @@ export const getPendingPayoDeposits = async (userId = null) => {
   return await api.get(url);
 };
 
-// NEW: Approve or Reject a deposit
 export const approveRejectDeposit = (payload) => {
   return api.post("api/admin/deposit-approval-reject", payload);
 };
-
 
 // ─── Bonus Schemes ──────────────────────────────────────────────────────────
 export const addBonusScheme = (data) =>
@@ -83,6 +79,5 @@ export const deactivateBonusScheme = (schemeCode) =>
 export const activateBonusScheme = (schemeCode) =>
   api.patch("/api/admin/bonus-scheme/activate", { scheme_code: schemeCode });
 
-// ✅ GET endpoint (plural) – matches your backend route: /bonus-schemes
 export const getBonusSchemes = (params = {}) =>
   api.get("/api/admin/bonus-schemes", { params });

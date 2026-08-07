@@ -1,4 +1,4 @@
-// src/features/referrals/pages/Referrals.jsx
+
 import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useReferrals } from '../hooks/useReferrals';
@@ -33,6 +33,7 @@ export default function Referrals() {
     handleSearchChange,
     fetchData,
     setExporting,
+    pageSize, // ✅ added – now pagination works
   } = useReferrals();
 
   // ─── Bonus Schemes tab state ──────────────────────────────────────────
@@ -133,18 +134,14 @@ export default function Referrals() {
     try {
       setExporting(true);
       const rows = [
-        ['Referrer Name', 'Referrer Email', 'Referral Code', 'Referred User', 'Referred Email', 'Reward (PYO)', 'Status', 'Joined At'],
+        ['Referrer Name', 'Referral Code', 'Total Referrals', 'Total Bonus Awarded ', 'Status', 'Joined At'],
         ...filtered.map((r) => [
-          r.referrer?.name || '—',
-          r.referrer?.email || '—',
-          r.referrer?.referralCode || '—',
-          r.referredUser?.name || '—',
-          r.referredUser?.email || '—',
-          r.rewardAmount ?? 0,
-          r.rewardStatus || '—',
-          r.referredUser?.joinedAt
-            ? new Date(r.referredUser.joinedAt).toLocaleDateString('en-IN')
-            : '—',
+          r.full_name || '—',
+          r.referral_code || '—',
+          r.total_referrals ?? 0,
+          r.total_bonus_awarded ?? 0,
+          r.user_status || '—',
+          r.created_on ? new Date(r.created_on).toLocaleDateString('en-IN') : '—',
         ]),
       ];
       const csv = rows.map((r) => r.map((v) => `"${v}"`).join(',')).join('\n');
@@ -347,7 +344,7 @@ export default function Referrals() {
             />
             <StatCard
               label="Rewards Distributed"
-              value={`${rewardsDistributed.toLocaleString()} PYO`}
+              value={`${rewardsDistributed.toLocaleString()} `}
               sub="Total rewards paid out"
               icon={
                 <svg width="20" height="20" fill="none" stroke="#F59E0B" strokeWidth="2" viewBox="0 0 24 24">
@@ -358,46 +355,18 @@ export default function Referrals() {
               color="#D97706"
               loading={refLoading}
             />
-            <StatCard
-              label="Pending Payouts"
-              value={pendingCount.toLocaleString()}
-              sub="Awaiting confirmation"
-              icon={
-                <svg width="20" height="20" fill="none" stroke="#F59E0B" strokeWidth="2" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-              }
-              iconBg="rgba(245,158,11,0.12)"
-              color="#D97706"
-              loading={refLoading}
-            />
-            <StatCard
-              label="Top Referrer"
-              value={topReferrers.length > 0 ? topReferrers[0]?.name || '—' : '—'}
-              sub={topReferrers.length > 0 ? `${topReferrers[0]?.totalReferrals ?? 0} referrals made` : 'No data yet'}
-              icon={
-                <svg width="20" height="20" fill="none" stroke="#10B981" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-                </svg>
-              }
-              iconBg="rgba(16,185,129,0.12)"
-              color="#059669"
-              loading={refLoading}
-            />
+           
+          
           </div>
 
           {/* Main Table Card */}
           <div className="card">
-            {/* Status tabs */}
+            {/* Status tabs – filter on user_status */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--gray-200)', paddingLeft: 8, overflowX: 'auto' }}>
               {[
                 { key: 'all', label: 'All', count: totalRows },
-                { key: 'paid', label: 'Paid', count: filtered.filter((r) => r.rewardStatus === 'paid').length },
-                { key: 'pending', label: 'Pending', count: pendingCount },
-                { key: 'failed', label: 'Failed', count: filtered.filter((r) => r.rewardStatus === 'failed').length },
+                { key: 'active', label: 'Active', count: filtered.filter((r) => (r.user_status || '').toUpperCase() === 'ACTIVE').length },
+                { key: 'inactive', label: 'Inactive', count: filtered.filter((r) => (r.user_status || '').toUpperCase() !== 'ACTIVE').length },
               ].map((tab) => (
                 <button
                   key={tab.key}
@@ -446,7 +415,7 @@ export default function Referrals() {
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 <input
-                  placeholder="Search by referrer name or email…"
+                  placeholder="Search by referrer name or code…"
                   value={search}
                   onChange={(e) => handleSearchChange(e.target.value)}
                 />
@@ -482,9 +451,9 @@ export default function Referrals() {
                 <thead>
                   <tr>
                     <th>Referrer</th>
-                    <th>Referred User</th>
+                    <th># Referrals</th>
                     <th>Code Used</th>
-                    <th>Reward (PYO)</th>
+                    <th>Reward </th>
                     <th>Status</th>
                     <th>Joined At</th>
                   </tr>
@@ -496,33 +465,22 @@ export default function Referrals() {
                         .map((_, i) => (
                           <tr key={i}>
                             <td>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                                <Skeleton w={120} h={13} r={4} />
-                                <Skeleton w={160} h={10} r={4} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <Skeleton w={34} h={34} r="50%" />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                  <Skeleton w={120} h={13} r={4} />
+                                </div>
                               </div>
                             </td>
-                            <td>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                                <Skeleton w={120} h={13} r={4} />
-                                <Skeleton w={160} h={10} r={4} />
-                              </div>
-                            </td>
-                            <td>
-                              <Skeleton w={80} h={22} r={6} />
-                            </td>
-                            <td>
-                              <Skeleton w={60} h={16} r={4} />
-                            </td>
-                            <td>
-                              <Skeleton w={70} h={22} r={20} />
-                            </td>
-                            <td>
-                              <Skeleton w={110} h={12} r={4} />
-                            </td>
+                            <td><Skeleton w={40} h={16} r={4} /></td>
+                            <td><Skeleton w={80} h={22} r={6} /></td>
+                            <td><Skeleton w={60} h={16} r={4} /></td>
+                            <td><Skeleton w={70} h={22} r={20} /></td>
+                            <td><Skeleton w={110} h={12} r={4} /></td>
                           </tr>
                         ))
                     : filtered.map((r, idx) => {
-                        const sb = statusBadge(r.rewardStatus);
+                        const sb = statusBadge(r.user_status);
                         return (
                           <tr
                             key={idx}
@@ -547,30 +505,22 @@ export default function Referrals() {
                                     boxShadow: '0 2px 8px rgba(109,40,217,0.3)',
                                   }}
                                 >
-                                  {(r.referrer?.name || '?').charAt(0).toUpperCase()}
+                                  {(r.full_name || '?').charAt(0).toUpperCase()}
                                 </div>
                                 <div>
                                   <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--navy)' }}>
-                                    {r.referrer?.name || '—'}
-                                  </div>
-                                  <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 1 }}>
-                                    {r.referrer?.email || r.referrer?.mobile || '—'}
+                                    {r.full_name || '—'}
                                   </div>
                                 </div>
                               </div>
                             </td>
                             <td>
-                              <div>
-                                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--navy)' }}>
-                                  {r.referredUser?.name || '—'}
-                                </div>
-                                <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 1 }}>
-                                  {r.referredUser?.email || r.referredUser?.mobile || '—'}
-                                </div>
-                              </div>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)' }}>
+                                {r.total_referrals ?? 0}
+                              </span>
                             </td>
                             <td>
-                              {r.referrer?.referralCode ? (
+                              {r.referral_code ? (
                                 <span
                                   style={{
                                     fontFamily: 'monospace',
@@ -583,7 +533,7 @@ export default function Referrals() {
                                     letterSpacing: '0.5px',
                                   }}
                                 >
-                                  {r.referrer.referralCode}
+                                  {r.referral_code}
                                 </span>
                               ) : (
                                 <span style={{ color: 'var(--gray-400)' }}>—</span>
@@ -598,14 +548,14 @@ export default function Referrals() {
                                   color: '#D97706',
                                 }}
                               >
-                                +{(r.rewardAmount ?? 0).toLocaleString()}
+                                +{(r.total_bonus_awarded ?? 0).toLocaleString()}
                               </span>
                             </td>
                             <td>
                               <span className={`badge ${sb.cls}`}>{sb.label}</span>
                             </td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>
-                              {formatDate(r.referredUser?.joinedAt)}
+                              {formatDate(r.created_on)}
                             </td>
                           </tr>
                         );
@@ -697,7 +647,7 @@ export default function Referrals() {
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 1 }}>
                           {tr.totalReferrals} referral{tr.totalReferrals !== 1 ? 's' : ''} ·{' '}
-                          {(tr.totalEarnings ?? 0).toLocaleString()} PYO
+                          {(tr.totalEarnings ?? 0).toLocaleString()} 
                         </div>
                       </div>
                     </div>
@@ -710,11 +660,15 @@ export default function Referrals() {
             {!refLoading && totalPages > 1 && (
               <div className="pagination">
                 <div className="pag-info">
-                  Showing {Math.min((page - 1) * 15 + 1, totalRows)}–{Math.min(page * 15, totalRows)} of {totalRows}{' '}
-                  referrals
+                  Showing {Math.min((page - 1) * pageSize + 1, totalRows)}–
+                  {Math.min(page * pageSize, totalRows)} of {totalRows} referrals
                 </div>
                 <div className="pag-btns">
-                  <button className="pag-btn" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+                  <button
+                    className="pag-btn"
+                    disabled={page === 1}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
                     ‹
                   </button>
                   {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
@@ -727,12 +681,20 @@ export default function Referrals() {
                         ? totalPages - 6 + i
                         : page - 3 + i;
                     return (
-                      <button key={p} className={`pag-btn${page === p ? ' act' : ''}`} onClick={() => setPage(p)}>
+                      <button
+                        key={p}
+                        className={`pag-btn${page === p ? ' act' : ''}`}
+                        onClick={() => setPage(p)}
+                      >
                         {p}
                       </button>
                     );
                   })}
-                  <button className="pag-btn" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
+                  <button
+                    className="pag-btn"
+                    disabled={page === totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
                     ›
                   </button>
                 </div>
